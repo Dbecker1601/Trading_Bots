@@ -1,6 +1,6 @@
 # Trading_Bots
 
-## Databento API Key hinterlegen
+## Databento API Key Hinterlegen
 
 1. Kopiere die Vorlage:
    - `cp .env.example .env`
