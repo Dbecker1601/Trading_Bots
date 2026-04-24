@@ -15,10 +15,13 @@ Wichtig:
 ## Python-Nutzung (ENV-only, ohne Key-Logging)
 
 ```python
-from trading_bots.config import get_databento_api_key
+from trading_bots.databento_client import create_databento_client
 
-api_key = get_databento_api_key()
-# hier an deinen Databento-Client übergeben
+client = create_databento_client()
+# client jetzt für Historical-Requests verwenden
 ```
 
-Die Funktion liest nur `DATABENTO_API_KEY` aus der Umgebung und wirft einen klaren Fehler, falls der Key fehlt.
+Hinweise:
+- `create_databento_client()` liest den Key intern über `DATABENTO_API_KEY`.
+- Der Key wird nicht aus dem Code gelesen und nicht geloggt.
+- Falls das Databento-SDK fehlt: `pip install databento`.
