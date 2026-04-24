@@ -91,8 +91,8 @@ if decision.action in {"long", "short"}:
 Neue Module:
 - `trading_bots/backtest.py` → Kostenmodell, Trade-Simulation, Walk-forward-Fenster
 - `trading_bots/reporting.py` → KPI-Berechnung (Win-Rate, Profit Factor, Max Drawdown, Sharpe-like)
-- `trading_bots/apex_rules.py` → Apex-Profile + Regelprüfung
-- `trading_bots/evaluation_pipeline.py` → kombinierter Report (Backtest + KPI + Apex Compliance)
+- `trading_bots/apex_rules.py` → Apex-Profile + Regelprüfung (Trailing Threshold, Daily Loss per Handelstag, Max Contracts, Consistency)
+- `trading_bots/evaluation_pipeline.py` → kombinierter Report (Backtest + KPI + Apex Compliance) + JSON/HTML Export
 
 Beispiel:
 
@@ -100,7 +100,7 @@ Beispiel:
 import datetime as dt
 
 from trading_bots.backtest import BacktestConfig, Trade
-from trading_bots.evaluation_pipeline import evaluate_trades_for_apex
+from trading_bots.evaluation_pipeline import evaluate_trades_for_apex, export_report_json, export_report_html
 
 trades = [
     Trade(timestamp=dt.datetime(2026, 4, 1, 9, 31), side="long", contracts=1, entry=20000.0, exit=20003.0),
@@ -114,8 +114,9 @@ report = evaluate_trades_for_apex(
     account_size=50_000,
 )
 
-print(report["kpis"])
-print(report["apex"])
+json_path = export_report_json(report, "reports/report.json")
+html_path = export_report_html(report, "reports/report.html")
+print(json_path, html_path)
 ```
 
 Apex-Hinweis:
