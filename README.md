@@ -25,3 +25,21 @@ Hinweise:
 - `create_databento_client()` liest den Key intern über `DATABENTO_API_KEY`.
 - Der Key wird nicht aus dem Code gelesen und nicht geloggt.
 - Falls das Databento-SDK fehlt: `pip install databento`.
+
+## Beispiel: Historische MNQ-Bars abrufen
+
+```python
+import datetime as dt
+
+from trading_bots.databento_client import create_databento_client
+from trading_bots.market_data import fetch_historical_bars
+
+client = create_databento_client()
+
+bars = fetch_historical_bars(
+    client=client,
+    symbols=["MNQ.c.0"],
+    start=dt.datetime(2026, 4, 1, 9, 30),
+    end=dt.datetime(2026, 4, 1, 16, 0),
+)
+```
