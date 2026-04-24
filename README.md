@@ -43,3 +43,52 @@ bars = fetch_historical_bars(
     end=dt.datetime(2026, 4, 1, 16, 0),
 )
 ```
+
+## Ziel-Architektur (Hybrid: Regeln + ML-Overlay + Risiko + Execution)
+
+1) Decision Engine (`trading_bots/decision_engine.py`)
+- Regime-Erkennung: `trend`, `range`, `risk_off`
+- Signalbildung (regelbasiert) + optionales ML-Overlay (`ml_prob_up`)
+- Edge-Gate: Trade nur wenn erwarteter Edge > Kosten + Sicherheitspuffer
+- Kill-Switch: kein Trade bei Tagesverlust-Limit
+
+2) Execution (`trading_bots/execution.py`)
+- Enge Spreads -> bevorzugt `limit`
+- Weite Spreads -> `market`
+- Ausgangspunkt für spätere RL-Execution-Optimierung
+
+3) Markt-Daten (`trading_bots/market_data.py`)
+- Historische Bars via Databento
+- Validierung + Fehler-Wrapping
+
+## Schnelles Entscheidungsbeispiel
+
+```python
+from trading_bots.decision_engine import DecisionConfig, MarketSnapshot, RiskState, generate_trade_decision
+from trading_bots.execution import build_entry_plan
+
+config = DecisionConfig()
+snapshot = MarketSnapshot(
+    returns_1m=0.0008,
+    returns_5m=0.0030,
+    ema_fast=20040,
+    ema_slow=20000,
+    realized_vol=0.008,
+    atr_points=18,
+    spread_bps=1.2,
+    session_minute=95,
+)
+risk_state = RiskState(current_position=0, daily_pnl=120.0)
+
+decision = generate_trade_decision(snapshot, risk_state, config, ml_prob_up=0.62)
+if decision.action in {"long", "short"}:
+    entry_plan = build_entry_plan(decision.action, spread_bps=snapshot.spread_bps)
+    # hier Order-Router aufrufen
+```
+
+## Nächste sinnvolle Ausbaustufen
+
+- Walk-forward Backtests mit realistischem Slippage/Kostenmodell
+- ML-Overlay (z. B. LightGBM) für bessere Trade-Filterung
+- RL erst als Phase 3: Position Sizing / Execution, nicht primär Richtungsvorhersage
+
