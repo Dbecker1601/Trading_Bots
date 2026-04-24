@@ -22,12 +22,17 @@ Ziel: robuste, erweiterbare Trading-Architektur mit klarer Trennung von Signal, 
 - Kein Trade wenn Tagesverlust-Limit überschritten
 - Positionsgröße durch Edge + Volatilitäts-Adjustierung begrenzt
 
-## Erweiterungen (nächste Schritte)
+## Erweiterungen (Status)
 
-1. Walk-forward Backtest Engine (rolling windows)
-2. Realistisches Kostenmodell (Fees + Slippage + Spread)
-3. Supervised ML-Overlay (LightGBM/XGBoost)
-4. RL als Add-on nur für Sizing/Execution
+Bereits umgesetzt:
+1. Walk-forward Backtest-Baustein (`walk_forward_windows`)
+2. Kostenmodell (`apply_costs`) inkl. Backtest-Simulation
+3. KPI-Reporting (`compute_kpis`)
+4. Apex-Regelcheck (`apex_rules.py`) + kombinierte Evaluierung (`evaluation_pipeline.py`)
+
+Nächste Umsetzung:
+1. Supervised ML-Overlay (LightGBM/XGBoost)
+2. RL als Add-on nur für Sizing/Execution
 
 ## Akzeptanzkriterien für nächste Phase
 

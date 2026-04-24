@@ -86,9 +86,46 @@ if decision.action in {"long", "short"}:
     # hier Order-Router aufrufen
 ```
 
+## Walk-forward Backtest + KPI + Apex-Regelcheck
+
+Neue Module:
+- `trading_bots/backtest.py` → Kostenmodell, Trade-Simulation, Walk-forward-Fenster
+- `trading_bots/reporting.py` → KPI-Berechnung (Win-Rate, Profit Factor, Max Drawdown, Sharpe-like)
+- `trading_bots/apex_rules.py` → Apex-Profile + Regelprüfung
+- `trading_bots/evaluation_pipeline.py` → kombinierter Report (Backtest + KPI + Apex Compliance)
+
+Beispiel:
+
+```python
+import datetime as dt
+
+from trading_bots.backtest import BacktestConfig, Trade
+from trading_bots.evaluation_pipeline import evaluate_trades_for_apex
+
+trades = [
+    Trade(timestamp=dt.datetime(2026, 4, 1, 9, 31), side="long", contracts=1, entry=20000.0, exit=20003.0),
+    Trade(timestamp=dt.datetime(2026, 4, 1, 10, 0), side="short", contracts=1, entry=20005.0, exit=20000.0),
+]
+
+report = evaluate_trades_for_apex(
+    trades=trades,
+    backtest_config=BacktestConfig(initial_equity=50_000.0, fee_bps=0.5, slippage_bps=0.5, point_value=2.0),
+    account_type="intraday",
+    account_size=50_000,
+)
+
+print(report["kpis"])
+print(report["apex"])
+```
+
+Apex-Hinweis:
+- Offizielle Apex-Seiten waren aus dieser Runtime durch Cloudflare geblockt.
+- Die Default-Werte in `apex_rules.py` basieren auf öffentlich sichtbaren Aggregator-Daten (PropFirmApp, Stand Abruf 2026-04-24).
+- Bitte vor Live-Nutzung die Werte mit deinen exakten Apex-Konto-Regeln abgleichen.
+
 ## Nächste sinnvolle Ausbaustufen
 
-- Walk-forward Backtests mit realistischem Slippage/Kostenmodell
 - ML-Overlay (z. B. LightGBM) für bessere Trade-Filterung
 - RL erst als Phase 3: Position Sizing / Execution, nicht primär Richtungsvorhersage
+- Intraday-Session-Filter + News-Filter + Contract-Limit pro Konto
 
