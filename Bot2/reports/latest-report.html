@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trading Bot Report</title>
+  <style>
+    body { font-family: Inter, Arial, sans-serif; background:#0b1020; color:#e8ecff; margin:0; padding:24px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+    .card { background:#121933; border:1px solid #23305f; border-radius:12px; padding:16px; }
+    h1,h2 { margin:0 0 12px 0; }
+    table { width:100%; border-collapse:collapse; }
+    td { padding:6px 0; border-bottom:1px solid #23305f; }
+    .ok { color:#5be37d; font-weight:700; }
+    .bad { color:#ff6b6b; font-weight:700; }
+    code { color:#9ad1ff; }
+  </style>
+</head>
+<body>
+  <h1>Trading Report</h1>
+  <div class="grid">
+    <section class="card">
+      <h2>Account</h2>
+      <table>
+        <tr><td>Type</td><td>intraday</td></tr>
+        <tr><td>Size</td><td>50000</td></tr>
+        <tr><td>Profit Target</td><td>3000.0</td></tr>
+        <tr><td>Max Loss</td><td>2000.0</td></tr>
+        <tr><td>Daily Loss Limit</td><td>None</td></tr>
+        <tr><td>Max Contracts</td><td>10</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>KPI Summary</h2>
+      <table>
+        <tr><td>Total PnL</td><td>-4.000000000000001</td></tr>
+        <tr><td>Win Rate</td><td>0.6666666666666666</td></tr>
+        <tr><td>Profit Factor</td><td>0.6666111018503084</td></tr>
+        <tr><td>Max Drawdown</td><td>-11.997999999999593</td></tr>
+        <tr><td>Sharpe-like</td><td>-0.1443646348203901</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Apex Compliance</h2>
+      <p class="bad">Passed: False</p>
+      <p>Violations: <code>consistency_rule</code></p>
+      <p>Reached Profit Target: False</p>
+      <p>Trailing Threshold: 48000.0</p>
+    </section>
+  </div>
+</body>
+</html>

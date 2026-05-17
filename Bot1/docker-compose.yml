@@ -1,0 +1,23 @@
+services:
+  trading-bot:
+    build:
+      context: .
+    image: trading-base
+    container_name: trading-bot1
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DRY_RUN: ${DRY_RUN:-true}
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-60}
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+      - trading-bot1-home:/root
+      - trading-bot1-ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  trading-bot1-home:
+  trading-bot1-ollama:

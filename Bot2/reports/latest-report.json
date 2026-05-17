@@ -1,0 +1,38 @@
+{
+  "account": {
+    "type": "intraday",
+    "size": 50000,
+    "profit_target": 3000.0,
+    "max_loss": 2000.0,
+    "daily_loss_limit": null,
+    "consistency_limit": 0.5,
+    "max_contracts": 10
+  },
+  "kpis": {
+    "total_pnl": -4.000000000000001,
+    "win_rate": 0.6666666666666666,
+    "profit_factor": 0.6666111018503084,
+    "max_drawdown": -11.997999999999593,
+    "sharpe_like": -0.1443646348203901
+  },
+  "apex": {
+    "passed": false,
+    "violations": [
+      "consistency_rule"
+    ],
+    "reached_profit_target": false,
+    "trailing_threshold": 48000.0
+  },
+  "equity_curve": [
+    50000.0,
+    50004.0,
+    50007.998,
+    49996.0
+  ],
+  "trade_pnls": [
+    4.0,
+    3.998,
+    -11.998000000000001
+  ],
+  "trade_count": 3
+}

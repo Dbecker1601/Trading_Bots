@@ -1,0 +1,43 @@
+name: Databento Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure secret is configured
+        run: |
+          if [ -z "${DATABENTO_API_KEY}" ]; then
+            echo "DATABENTO_API_KEY secret is missing. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install databento pandas numpy
+
+      - name: Run Databento smoke test
+        run: python scripts/smoke_test_databento.py
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: databento-smoke-report
+          path: |
+            reports/smoke_first_pull.csv
+            reports/smoke_first_pull_summary.json
+          if-no-files-found: warn
