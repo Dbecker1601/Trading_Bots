@@ -259,3 +259,12 @@ Diese Dokumente sind die konzeptionelle Grundlage für Strategy V2 und zukünfti
 3. **Live-Order-Router:** `execution.py` → Broker-API-Anbindung
 4. **News-Filter:** Makro-Event-Kalender-Integration
 5. **Session-Filter:** Separate Parameter pro Session (London Open, NYSE Open, Close)
+
+---
+
+## Aktualisierung Funding-Gate 2026-05-17
+
+- Neues Modul `env.py`: Repo-`.env` finden/laden, ohne Secret-Werte zu loggen.
+- Apex 50k Intraday Evaluation: `max_contracts=6`.
+- Intraday Trailing Drawdown wird dynamisch anhand des Equity-Peaks bewertet.
+- Consistency ist profilabhaengig und bei Intraday Evaluations nicht aktiv.

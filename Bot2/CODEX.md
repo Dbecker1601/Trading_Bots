@@ -158,10 +158,16 @@ session_start_utc_minute=810, session_end_utc_minute=1200
 
 ## Apex Compliance (`apex_rules.py`)
 
+Current implementation notes:
+- `env.py` loads the repo `.env` without logging secret values.
+- Apex 50k Intraday Evaluation uses `max_contracts=6`.
+- Intraday trailing drawdown is evaluated dynamically from the equity peak.
+- Consistency is profile-specific and is not applied to Intraday Evaluation profiles.
+
 **Account profiles** (PropFirmApp data, 2026-04-24 – verify before live use):
 
 ```python
-("intraday", 50_000): profit_target=3000, max_loss=2000, daily_loss=None,  max_contracts=10
+("intraday", 50_000): profit_target=3000, max_loss=2000, daily_loss=None,  max_contracts=6
 ("eod",      50_000): profit_target=3000, max_loss=2000, daily_loss=1000,  max_contracts=10
 ```
 
@@ -171,7 +177,7 @@ def check_apex_compliance(trades, equity_curve, profile) -> ApexComplianceReport
     # 1. Trailing threshold: min(equity) >= peak_equity - max_loss
     # 2. Daily loss limit (eod only): no day below daily_loss_limit
     # 3. Max contracts: no trade exceeds max_contracts
-    # 4. Consistency: no single trade > 50% of total profit
+    # 4. Consistency: configurable; not applied to Intraday Evaluation profiles
     return ApexComplianceReport(passed, violations, reached_profit_target, trailing_threshold)
 ```
 

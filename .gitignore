@@ -61,6 +61,8 @@ bot.log
 # ─── Reports (generated, nicht committen) ────────────────────────────────────
 reports/*.json
 reports/*.html
+Bot1/reports/
+Bot2/reports/smoke_*
 
 # ─── Jupyter / IPython ───────────────────────────────────────────────────────
 .ipynb_checkpoints

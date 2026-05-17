@@ -1,9 +1,9 @@
 import os
 import time
 import logging
-from dotenv import load_dotenv
+from forex_strategies.env_loader import load_project_env
 
-load_dotenv()
+load_project_env()
 
 logging.basicConfig(
     level=logging.INFO,

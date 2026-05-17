@@ -5,7 +5,11 @@ import os
 DATABENTO_DATASET  = "GLBX.MDP3"           # CME Globex
 DATABENTO_SYMBOL   = "6E.c.0"              # 6E continuous front-month
 DATABENTO_STYPE    = "continuous"
+DATABENTO_FX_DATASET = "FXSPOT"            # spot FX, if subscribed
+DATABENTO_FX_SYMBOL  = "EUR/USD"
+DATABENTO_FX_STYPE   = "raw_symbol"
 YAHOO_SYMBOL       = "EURUSD=X"            # fallback
+SYMBOL             = YAHOO_SYMBOL          # backward-compatible alias
 
 # ── Backtest Defaults ─────────────────────────────────────────────────────────
 FEES       = 0.00010   # ~1 pip round-trip (commission ≈ $5 + 0.5-pip spread)

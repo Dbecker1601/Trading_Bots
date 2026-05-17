@@ -12,7 +12,7 @@ class ApexAccountProfile:
     profit_target: float
     max_loss: float
     daily_loss_limit: float | None
-    consistency_limit: float = 0.5
+    consistency_limit: float | None = None
     max_contracts: int = 0
 
 
@@ -24,18 +24,17 @@ class ApexComplianceReport:
     trailing_threshold: float
 
 
-# Based on publicly visible aggregation data (PropFirmApp, accessed 2026-04-24).
-# Official Apex pages were Cloudflare-blocked from this runtime, so keep this configurable.
-# max_contracts follows common Apex-style limits per account size and should be verified per account.
+# Intraday Evaluation values reflect Apex's public help-center table accessed 2026-05-17.
+# EOD values remain configurable defaults and should be checked against the exact account.
 _PROFILE_TABLE: dict[tuple[str, int], ApexAccountProfile] = {
     ("intraday", 25_000): ApexAccountProfile("intraday", 25_000, profit_target=1500.0, max_loss=1000.0, daily_loss_limit=None, max_contracts=4),
-    ("intraday", 50_000): ApexAccountProfile("intraday", 50_000, profit_target=3000.0, max_loss=2000.0, daily_loss_limit=None, max_contracts=10),
-    ("intraday", 100_000): ApexAccountProfile("intraday", 100_000, profit_target=6000.0, max_loss=3000.0, daily_loss_limit=None, max_contracts=14),
-    ("intraday", 150_000): ApexAccountProfile("intraday", 150_000, profit_target=9000.0, max_loss=4000.0, daily_loss_limit=None, max_contracts=17),
-    ("eod", 25_000): ApexAccountProfile("eod", 25_000, profit_target=1500.0, max_loss=1000.0, daily_loss_limit=500.0, max_contracts=4),
-    ("eod", 50_000): ApexAccountProfile("eod", 50_000, profit_target=3000.0, max_loss=2000.0, daily_loss_limit=1000.0, max_contracts=10),
-    ("eod", 100_000): ApexAccountProfile("eod", 100_000, profit_target=6000.0, max_loss=3000.0, daily_loss_limit=1500.0, max_contracts=14),
-    ("eod", 150_000): ApexAccountProfile("eod", 150_000, profit_target=9000.0, max_loss=4000.0, daily_loss_limit=2000.0, max_contracts=17),
+    ("intraday", 50_000): ApexAccountProfile("intraday", 50_000, profit_target=3000.0, max_loss=2000.0, daily_loss_limit=None, max_contracts=6),
+    ("intraday", 100_000): ApexAccountProfile("intraday", 100_000, profit_target=6000.0, max_loss=3000.0, daily_loss_limit=None, max_contracts=8),
+    ("intraday", 150_000): ApexAccountProfile("intraday", 150_000, profit_target=9000.0, max_loss=4000.0, daily_loss_limit=None, max_contracts=12),
+    ("eod", 25_000): ApexAccountProfile("eod", 25_000, profit_target=1500.0, max_loss=1000.0, daily_loss_limit=500.0, consistency_limit=0.5, max_contracts=4),
+    ("eod", 50_000): ApexAccountProfile("eod", 50_000, profit_target=3000.0, max_loss=2000.0, daily_loss_limit=1000.0, consistency_limit=0.5, max_contracts=10),
+    ("eod", 100_000): ApexAccountProfile("eod", 100_000, profit_target=6000.0, max_loss=3000.0, daily_loss_limit=1500.0, consistency_limit=0.5, max_contracts=14),
+    ("eod", 150_000): ApexAccountProfile("eod", 150_000, profit_target=9000.0, max_loss=4000.0, daily_loss_limit=2000.0, consistency_limit=0.5, max_contracts=17),
 }
 
 
@@ -70,8 +69,11 @@ def evaluate_apex_compliance(
     violations: list[str] = []
 
     trailing_threshold = profile.account_size - profile.max_loss
-    if min(equity) < trailing_threshold:
-        violations.append("max_loss")
+    for value in equity:
+        if value <= trailing_threshold:
+            violations.append("max_loss")
+            break
+        trailing_threshold = max(trailing_threshold, value - profile.max_loss)
 
     if profile.max_contracts > 0 and trade_list:
         if any(t.contracts > profile.max_contracts for t in trade_list):
@@ -87,7 +89,7 @@ def evaluate_apex_compliance(
             violations.append("daily_loss_limit")
 
     positive_days = [p for p in pnls if p > 0]
-    if positive_days:
+    if profile.consistency_limit is not None and positive_days:
         largest_positive = max(positive_days)
         total_positive = sum(positive_days)
         if total_positive > 0 and largest_positive > profile.consistency_limit * total_positive:

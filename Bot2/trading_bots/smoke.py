@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, MutableMapping
 
 from trading_bots.databento_client import create_databento_client
+from trading_bots.env import load_env_file as _load_env_file
+from trading_bots.env import load_project_env
 from trading_bots.market_data import fetch_historical_bars
 
 
@@ -12,22 +14,8 @@ def load_env_file(
     path: str = ".env",
     environ: MutableMapping[str, str] | None = None,
 ) -> list[str]:
-    """Load KEY=VALUE pairs from .env into the given environment mapping."""
-    target = environ if environ is not None else os.environ
-    env_path = Path(path)
-    if not env_path.exists():
-        return []
-
-    loaded_keys: list[str] = []
-    for raw_line in env_path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        target[key] = value.strip()
-        loaded_keys.append(key)
-    return loaded_keys
+    """Backward-compatible wrapper for tests/scripts."""
+    return _load_env_file(path, environ=environ, override=True)
 
 
 def _default_window() -> tuple[dt.datetime, dt.datetime]:
@@ -42,7 +30,7 @@ def run_databento_smoke_test(
     sample_rows: int = 20,
 ) -> dict[str, Any]:
     """Run a minimal authenticated Databento pull and persist sample artifacts."""
-    load_env_file()
+    load_project_env()
     client = create_databento_client()
 
     start, end = _default_window()
