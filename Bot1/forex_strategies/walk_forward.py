@@ -1,105 +1,224 @@
-"""Walk-Forward Validation
-
-Testet ob optimierte Parameter auf ungesehenen Daten (OOS) funktionieren.
-
-Timeline:
-  |─── Train 1 ───|─ Test 1 ─|
-          |─── Train 2 ───|─ Test 2 ─|
-                  |─── Train 3 ───|─ Test 3 ─|
 """
-import vectorbt as vbt
+Walk-Forward Validation für Bot1 – 6E / EUR/USD Strategien.
+
+Echtes WFA-Schema:
+  1. Trainingsperiode → strategy3_optimizer.optimize() findet beste Parameter
+  2. OOS-Testperiode  → bester Parametersatz wird unverändert getestet
+  3. Fenster rücken um step_pct vor
+
+Auswertung:
+  - OOS-Sharpe, -SQN, -Return, -Drawdown pro Fenster
+  - Profitable Splits ≥ 60 %  AND  Ø OOS-SQN ≥ 2.0  → bestanden
+  - Funding-Assessment auf gepoolten OOS-Trades
+"""
+from __future__ import annotations
+
+import warnings
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-from config import SYMBOL, FEES, INIT_CASH
+import vectorbt as vbt
 
-# Beste Parameter aus Optimizer eintragen
-BEST_FAST    = 15
-BEST_SLOW    = 50
-BEST_ATR_P   = 14
-BEST_SL_MULT = 2.0
-BEST_RR      = 2.5
+from config import FEES, INIT_CASH, PROP_FIRMS
+from databento_loader import load_session
+from prop_firm_score import compute_metrics, print_prop_firm_report
+from strategy3_optimizer import PARAM_GRID, _run_single, optimize
 
+warnings.filterwarnings("ignore")
 
-def _run_strategy(data, fast, slow, atr_p, sl_m, rr):
-    ema_f = data.run("ema", fast)
-    ema_s = data.run("ema", slow)
-    atr   = data.run("talib_func:atr", timeperiod=atr_p)
-    le    = ema_f.real.vbt.crossed_above(ema_s.real)
-    se    = ema_f.real.vbt.crossed_below(ema_s.real)
-    return vbt.PF.from_signals(
-        data, le, se, se, le,
-        sl_stop=sl_m * atr.real / data.close,
-        tp_stop=sl_m * rr * atr.real / data.close,
-        fees=FEES, init_cash=INIT_CASH, direction="both"
-    )
+# ── WFA-Konfiguration ─────────────────────────────────────────────────────────
+TRAIN_PCT = 0.65     # 65 % Training
+TEST_PCT  = 0.20     # 20 % OOS-Test
+STEP_PCT  = 0.15     # 15 % Step (Überlappung = 0 wenn TRAIN+TEST+STEP = 1.0)
+
+# Mindestanforderungen für bestandene Validierung
+MIN_PROFITABLE_SPLITS_PCT = 0.60
+MIN_OOS_SQN               = 2.0
 
 
-def run(data_full,
-        fast=BEST_FAST, slow=BEST_SLOW, atr_p=BEST_ATR_P,
-        sl_m=BEST_SL_MULT, rr=BEST_RR,
-        train_pct=0.70, test_pct=0.15, step_pct=0.10) -> pd.DataFrame:
+def _oos_portfolio(df_oos: pd.DataFrame, params: dict) -> Optional[vbt.Portfolio]:
+    """Führt _run_single mit params-Dict aus. None bei Fehler."""
+    try:
+        return _run_single(
+            df_oos,
+            fast    = int(params["fast_ema"]),
+            slow    = int(params["slow_ema"]),
+            atr_p   = int(params["atr_period"]),
+            sl_m    = float(params["sl_mult"]),
+            rr      = float(params["rr_ratio"]),
+            adx_min = float(params["adx_min"]),
+        )
+    except Exception:
+        return None
 
-    n_bars     = len(data_full.index)
-    train_size = int(n_bars * train_pct)
-    test_size  = int(n_bars * test_pct)
-    step_size  = int(n_bars * step_pct)
 
-    results   = []
-    split_idx = 0
-    start     = 0
+def run(df_full: pd.DataFrame,
+        train_pct: float = TRAIN_PCT,
+        test_pct: float  = TEST_PCT,
+        step_pct: float  = STEP_PCT,
+        param_grid: dict | None = None) -> pd.DataFrame:
+    """
+    Vollständiger Walk-Forward Validation Run.
 
-    print("Walk-Forward Validation:")
-    print("-" * 60)
+    Parameter
+    ---------
+    df_full     : kompletter Datensatz (H4 empfohlen)
+    param_grid  : Grid für strategy3_optimizer.optimize() – None = PARAM_GRID
+    """
+    n          = len(df_full)
+    train_size = int(n * train_pct)
+    test_size  = int(n * test_pct)
+    step_size  = int(n * step_pct)
 
-    while start + train_size + test_size <= n_bars:
+    if train_size + test_size > n:
+        raise ValueError("Datensatz zu kurz für gewählte WFA-Aufteilung.")
+
+    results    = []
+    split_idx  = 0
+    start      = 0
+
+    print("Walk-Forward Validation – 6E / EUR/USD")
+    print("=" * 70)
+    print(f"  Gesamt-Bars: {n} | Train: {train_pct*100:.0f}% | OOS: {test_pct*100:.0f}% | Step: {step_pct*100:.0f}%")
+    print("-" * 70)
+
+    while start + train_size + test_size <= n:
         train_end  = start + train_size
         test_end   = train_end + test_size
-        test_data  = data_full.iloc[train_end:test_end]
+        df_train   = df_full.iloc[start:train_end]
+        df_oos     = df_full.iloc[train_end:test_end]
 
-        pf = _run_strategy(test_data, fast, slow, atr_p, sl_m, rr)
+        train_from = df_full.index[start]
+        train_to   = df_full.index[train_end - 1]
+        oos_from   = df_full.index[train_end]
+        oos_to     = df_full.index[test_end - 1]
 
-        row = {
-            "split":      split_idx,
-            "train_from": data_full.index[start].date(),
-            "train_to":   data_full.index[train_end - 1].date(),
-            "test_from":  data_full.index[train_end].date(),
-            "test_to":    data_full.index[test_end - 1].date(),
-            "oos_sharpe": round(pf.sharpe_ratio(),          3),
-            "oos_ret":    round(pf.total_return() * 100,    2),
-            "oos_dd":     round(abs(pf.max_drawdown()) * 100, 2),
-            "oos_trades": pf.trades.count(),
-            "oos_pf":     round(pf.trades.profit_factor(),  3),
-        }
-        results.append(row)
-        print(f"Split {split_idx}: OOS Sharpe={row['oos_sharpe']:.3f} | "
-              f"Return={row['oos_ret']:.1f}% | DD={row['oos_dd']:.1f}%")
+        print(f"\nSplit {split_idx}: Train [{train_from.date()} → {train_to.date()}]"
+              f"  OOS [{oos_from.date()} → {oos_to.date()}]")
+
+        # Optimierung auf Trainingsdaten
+        try:
+            df_opt = optimize(df_train, param_grid=param_grid or PARAM_GRID)
+        except Exception as e:
+            print(f"  ⚠️  Optimierung fehlgeschlagen: {e}")
+            start += step_size
+            split_idx += 1
+            continue
+
+        valid = df_opt[df_opt["score"] > 0]
+        if valid.empty:
+            print("  ⚠️  Kein gültiger Parametersatz gefunden.")
+            start += step_size
+            split_idx += 1
+            continue
+
+        best_params = valid.iloc[0].to_dict()
+        print(f"  Beste Parameter (Train): "
+              f"fast={int(best_params['fast_ema'])}  slow={int(best_params['slow_ema'])}  "
+              f"adx={best_params['adx_min']}  sl={best_params['sl_mult']:.1f}  "
+              f"rr={best_params['rr_ratio']:.1f}")
+
+        # OOS-Test
+        pf_oos = _oos_portfolio(df_oos, best_params)
+        if pf_oos is None:
+            print("  ⚠️  OOS-Portfolio konnte nicht erstellt werden.")
+            start += step_size
+            split_idx += 1
+            continue
+
+        m = compute_metrics(pf_oos)
+        print(f"  OOS: Sharpe={m['sharpe']:.3f} | SQN={m['sqn']:.3f} | "
+              f"Return={m['total_ret_pct']:.1f}% | DD={m['max_dd_pct']:.1f}% | "
+              f"Trades={m['n_trades']}")
+
+        results.append({
+            "split":           split_idx,
+            "train_from":      train_from.date(),
+            "train_to":        train_to.date(),
+            "oos_from":        oos_from.date(),
+            "oos_to":          oos_to.date(),
+            "best_fast":       int(best_params["fast_ema"]),
+            "best_slow":       int(best_params["slow_ema"]),
+            "best_adx":        best_params["adx_min"],
+            "best_sl":         best_params["sl_mult"],
+            "best_rr":         best_params["rr_ratio"],
+            "train_score":     round(best_params["score"], 4),
+            "oos_sharpe":      m["sharpe"],
+            "oos_sqn":         m["sqn"],
+            "oos_ret_pct":     m["total_ret_pct"],
+            "oos_dd_pct":      m["max_dd_pct"],
+            "oos_pf":          m["pf_factor"],
+            "oos_win_rate":    m["win_rate"],
+            "oos_trades":      m["n_trades"],
+        })
 
         start     += step_size
         split_idx += 1
 
-    df = pd.DataFrame(results)
+    if not results:
+        print("\n❌ Keine OOS-Ergebnisse verfügbar.")
+        return pd.DataFrame()
 
-    print("\n" + "=" * 60)
+    df_res = pd.DataFrame(results)
+
+    # ── Zusammenfassung ───────────────────────────────────────────────────────
+    n_splits      = len(df_res)
+    n_profitable  = (df_res["oos_ret_pct"] > 0).sum()
+    profitable_r  = n_profitable / n_splits
+    avg_oos_sqn   = df_res["oos_sqn"].mean()
+    avg_oos_sharpe= df_res["oos_sharpe"].mean()
+    avg_oos_dd    = df_res["oos_dd_pct"].mean()
+
+    print("\n" + "=" * 70)
     print("Walk-Forward Zusammenfassung:")
-    print(df.to_string(index=False))
-    print(f"\n  OOS Sharpe:        {df['oos_sharpe'].mean():.3f} ± {df['oos_sharpe'].std():.3f}")
-    print(f"  OOS Return:        {df['oos_ret'].mean():.1f}%")
-    print(f"  OOS DD:            {df['oos_dd'].mean():.1f}%")
-    print(f"  Profitable Splits: {(df['oos_ret'] > 0).sum()} / {len(df)}")
+    print("-" * 70)
+    display_cols = ["split", "oos_from", "oos_to", "oos_sharpe",
+                    "oos_sqn", "oos_ret_pct", "oos_dd_pct", "oos_trades"]
+    print(df_res[display_cols].to_string(index=False))
+    print("-" * 70)
+    print(f"  Profitable Splits:   {n_profitable}/{n_splits}  ({profitable_r*100:.1f}%)"
+          f"   {'✅' if profitable_r >= MIN_PROFITABLE_SPLITS_PCT else '❌'}")
+    print(f"  Ø OOS Sharpe:        {avg_oos_sharpe:.3f}")
+    print(f"  Ø OOS SQN:           {avg_oos_sqn:.3f}"
+          f"   {'✅' if avg_oos_sqn >= MIN_OOS_SQN else '❌ < 2.0'}")
+    print(f"  Ø OOS Drawdown:      {avg_oos_dd:.1f}%")
 
-    profitable_ratio = (df["oos_ret"] > 0).mean()
-    avg_oos_sharpe   = df["oos_sharpe"].mean()
+    passed = profitable_r >= MIN_PROFITABLE_SPLITS_PCT and avg_oos_sqn >= MIN_OOS_SQN
+    print()
+    if passed:
+        print("  ✅ Strategie BESTEHT Walk-Forward Validierung!")
+        print("     → Geeignet für Prop-Firm Challenge")
 
-    if profitable_ratio >= 0.6 and avg_oos_sharpe >= 0.5:
-        print("\n✅ Strategie besteht Walk-Forward Validierung!")
-        print("   → Geeignet für Prop-Firm Challenge")
+        # Funding-Bewertung auf Basis der OOS-Metriken
+        print(f"\n  Funding-Empfehlung (basierend auf Ø OOS-Metriken):")
+        for fk, firm in PROP_FIRMS.items():
+            dd_ok = avg_oos_dd <= firm["max_loss_pct"]
+            if dd_ok and avg_oos_sqn >= 2.0:
+                print(f"     ✅ {firm['label']}")
+            elif dd_ok:
+                print(f"     🟡 {firm['label']} (SQN grenzwertig)")
+            else:
+                print(f"     ❌ {firm['label']} (DD-Limit verletzt)")
     else:
-        print("\n❌ Strategie besteht Walk-Forward NICHT.")
-        print("   → Parameter anpassen oder andere Strategie wählen")
+        print("  ❌ Strategie besteht Walk-Forward NICHT.")
+        if profitable_r < MIN_PROFITABLE_SPLITS_PCT:
+            print(f"     → Nur {n_profitable}/{n_splits} Splits profitabel (Ziel ≥ 60 %)")
+        if avg_oos_sqn < MIN_OOS_SQN:
+            print(f"     → Ø OOS-SQN {avg_oos_sqn:.3f} < {MIN_OOS_SQN}")
+        print("     → Parameter verfeinern oder anderen Timeframe testen")
 
-    return df
+    print("=" * 70)
+    return df_res
 
 
 if __name__ == "__main__":
-    data_full = vbt.YFData.download(SYMBOL, period="max", interval="4h", start="2018-01-01", end="2024-01-01")
-    run(data_full)
+    print("Lade 6E/EURUSD H4 (2019-01-01 – 2024-06-01) für WFA ...")
+    df_full = load_session("4h", start="2019-01-01", end="2024-06-01")
+    print(f"  {len(df_full)} H4-Bars geladen\n")
+
+    df_wfa = run(df_full)
+
+    if not df_wfa.empty:
+        df_wfa.to_csv("wfa_results.csv", index=False)
+        print("\nErgebnisse gespeichert: wfa_results.csv")
